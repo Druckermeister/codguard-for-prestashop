@@ -1,0 +1,43 @@
+/**
+ * CodGuard Payment Disabling Styles
+ * Provides visual feedback for disabled payment methods
+ */
+
+.codguard-disabled-payment-method {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    position: relative;
+}
+
+.codguard-disabled-payment-method::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(200, 200, 200, 0.3);
+    z-index: 1;
+}
+
+.codguard-payment-description {
+    margin-top: 8px;
+    padding: 10px 15px;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    color: #721c24;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.codguard-payment-description strong {
+    font-weight: 600;
+}
+
+/* Hide blocked payment methods completely as a fallback */
+.codguard-hidden {
+    display: none !important;
+    visibility: hidden !important;
+}

@@ -1,0 +1,17 @@
+{
+  "name": "codguard-for-prestashop",
+  "version": "1.0.0",
+  "description": "CodGuard for PrestaShop - test runner",
+  "scripts": {
+    "start": "http-server ./views -p 3000",
+    "test": "node tests/comprehensive_test.js",
+    "postinstall": "npx playwright install --with-deps"
+  },
+  "dependencies": {
+    "basic-ftp": "^5.0.5",
+    "playwright": "^1.57.0"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
