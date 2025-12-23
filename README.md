@@ -18,22 +18,34 @@ CodGuard validates customer ratings via API and disables Cash on Delivery paymen
 
 ## Installation
 
-The module is already uploaded to: `/www/modules/codguard/`
+### One-Click Installation
 
-**Install via Admin Panel:**
-1. Go to: Modules > Module Manager
-2. Search for "CodGuard"
-3. Click "Install"
-4. Click "Configure" and enter your API credentials
+1. **Download the module**
+   - Click the green "Code" button above
+   - Select "Download ZIP"
+   - Extract the ZIP file
+
+2. **Install via PrestaShop Admin Panel**
+   - Go to: Modules > Module Manager
+   - Click "Upload a module"
+   - Drag and drop the extracted `codguard-for-prestashop` folder (or compress it to a ZIP)
+   - PrestaShop will automatically install the module
+
+3. **Configure the module**
+   - Click "Configure" on the CodGuard module
+   - Enter your API credentials (see Configuration section below)
+   - Set your rating tolerance
+   - Customize the rejection message
+   - Enable the module
 
 ## Configuration
 
 ### API Settings
 
-From the `.env` file:
-- **Shop ID**: 25179266
-- **Public API Key**: wt-cf0f7df5cfc99f8059e22d7f4432fd79a003ed3a4c07079cb617f5f681b10c38
-- **Private API Key**: wt-86d53ffbc7265d4428a33b6cdb539bf482d6400423a61b35488a2b92b091b481
+You will need your CodGuard API credentials:
+- **Shop ID**: Your unique shop identifier
+- **Public API Key**: Your public API key (starts with `wt-`)
+- **Private API Key**: Your private API key (starts with `wt-`)
 
 ### Rating Settings
 
