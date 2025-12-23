@@ -9,9 +9,22 @@
 .DS_Store
 Thumbs.db
 
-# Test artifacts
-/tests/*.png
-/tests/*.log
+# Development files
+/tests/
+/node_modules/
+package.json
+package-lock.json
+check_*.php
+clear_cache*.php
+disable_module.php
+enable_module.php
+fix_api_keys.php
+get_*.php
+remove_override.php
+.claude/
+*.zip
+/override/
+.env
 
 # Temporary files
 *.tmp
