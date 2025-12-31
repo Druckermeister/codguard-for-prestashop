@@ -1,0 +1,39 @@
+name: Build PrestaShop Module
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create module structure
+        run: |
+          mkdir -p build/codguard
+          cp -r codguard.php config.xml index.php views build/codguard/
+
+      - name: Create zip
+        run: |
+          cd build
+          zip -r codguard.zip codguard/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codguard-prestashop
+          path: build/codguard.zip
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/codguard.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
