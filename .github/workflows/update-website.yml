@@ -1,0 +1,64 @@
+name: Update Website Download Links
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-website:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Update PrestaShop download link
+        env:
+          FTP_HOST: ${{ secrets.WEBSITE_FTP_HOST }}
+          FTP_USER: ${{ secrets.WEBSITE_FTP_USER }}
+          FTP_PASS: ${{ secrets.WEBSITE_FTP_PASS }}
+        run: |
+          # Create PHP script to update the link
+          cat > /tmp/update_link.php << 'EOF'
+          <?php
+          require_once('wp-load.php');
+
+          $post_id = 6196; // PrestaShop integration page
+          $old_url = 'https://github.com/Druckermeister/codguard-for-prestashop/archive/refs/heads/main.zip';
+          $new_url = 'https://github.com/Druckermeister/codguard-for-prestashop/releases/latest/download/codguard.zip';
+
+          $post = get_post($post_id);
+          if ($post && strpos($post->post_content, $old_url) !== false) {
+              $updated_content = str_replace($old_url, $new_url, $post->post_content);
+              wp_update_post([
+                  'ID' => $post_id,
+                  'post_content' => $updated_content
+              ]);
+
+              // Update Elementor data if exists
+              $elementor_data = get_post_meta($post_id, '_elementor_data', true);
+              if ($elementor_data && strpos($elementor_data, $old_url) !== false) {
+                  $updated_elementor = str_replace($old_url, $new_url, $elementor_data);
+                  update_post_meta($post_id, '_elementor_data', $updated_elementor);
+              }
+
+              echo "✅ Updated download link to latest release\n";
+          }
+          ?>
+          EOF
+
+          # Upload and execute
+          lftp -c "set ssl:verify-certificate no; \
+                   open -u $FTP_USER,$FTP_PASS ftp://$FTP_HOST; \
+                   cd www; \
+                   put /tmp/update_link.php"
+
+          curl -s https://www.codguard.com/update_link.php
+
+          # Clean up
+          lftp -c "set ssl:verify-certificate no; \
+                   open -u $FTP_USER,$FTP_PASS ftp://$FTP_HOST; \
+                   cd www; \
+                   rm update_link.php"
+
+      - name: Notify completion
+        run: |
+          echo "✅ Website updated with new PrestaShop download link"
+          echo "🔗 https://www.codguard.com/prestashop-integration/"

@@ -1,0 +1,36 @@
+name: Deploy to Test Site
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Deploy via FTP
+        env:
+          FTP_HOST: ${{ secrets.PRESTASHOP_FTP_HOST }}
+          FTP_USER: ${{ secrets.PRESTASHOP_FTP_USER }}
+          FTP_PASS: ${{ secrets.PRESTASHOP_FTP_PASS }}
+        run: |
+          lftp -c "set ssl:verify-certificate no; \
+                   open -u $FTP_USER,$FTP_PASS ftp://$FTP_HOST; \
+                   mirror -R --only-newer --delete --verbose \
+                   --exclude .git/ \
+                   --exclude .github/ \
+                   --exclude node_modules/ \
+                   ./ /www/modules/codguard/"
+
+      - name: Deployment complete
+        run: |
+          echo "✅ Deployed to PrestaShop test site"
+          echo "📍 Site: http://prestashop.codguard.com"
