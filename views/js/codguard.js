@@ -20,15 +20,30 @@
 
             console.log('[CodGuard] Initializing payment manager');
 
-            // Check if we're on the payment step by looking for the active checkout step
-            // Step 1 = Personal Information, Step 2 = Addresses, Step 3 = Shipping, Step 4 = Payment
-            var paymentStep = document.querySelector('.checkout-step.-current[id*="payment"], .checkout-step.js-current-step[id*="payment"], #checkout-payment-step.-current');
-            if (!paymentStep) {
-                console.log('[CodGuard] Not on payment step yet - skipping initialization');
+            // Check if payment options are visible and enabled (not just present in DOM)
+            var paymentOptions = document.querySelectorAll('input[type="radio"][name="payment-option"]');
+            if (paymentOptions.length === 0) {
+                console.log('[CodGuard] No payment options found - not on payment step yet');
                 return;
             }
 
-            console.log('[CodGuard] On payment step, proceeding with initialization');
+            // Check if at least one payment option is visible (not hidden by CSS)
+            var hasVisiblePayment = false;
+            for (var i = 0; i < paymentOptions.length; i++) {
+                var option = paymentOptions[i];
+                // Check if element or its parent container is visible
+                if (option.offsetParent !== null || window.getComputedStyle(option).display !== 'none') {
+                    hasVisiblePayment = true;
+                    break;
+                }
+            }
+
+            if (!hasVisiblePayment) {
+                console.log('[CodGuard] Payment options exist but are not visible - not on payment step yet');
+                return;
+            }
+
+            console.log('[CodGuard] Found ' + paymentOptions.length + ' visible payment options - on payment step');
 
             // Try to get configuration from PrestaShop global variable (preferred method)
             if (typeof prestashop !== 'undefined' && prestashop.codguardConfig) {
@@ -85,23 +100,27 @@
                 return;
             }
 
-            // Find payment options container
-            var paymentContainer = document.querySelector('#payment-option-1-container, .payment-options, #payment-confirmation, [id*="payment"]');
-            if (!paymentContainer) {
-                console.log('[CodGuard] Could not find payment container for warning banner');
+            // Find the CURRENT (visible) payment step section
+            var paymentStep = document.querySelector('#checkout-payment-step, .checkout-step[id*="payment"]');
+            if (!paymentStep) {
+                console.log('[CodGuard] Could not find payment step for warning banner');
                 return;
             }
+
+            // Find the content section within the payment step
+            var paymentContent = paymentStep.querySelector('.content, .step-content, #payment-confirmation');
+            var targetContainer = paymentContent || paymentStep;
 
             // Create warning banner
             var banner = document.createElement('div');
             banner.className = 'alert alert-warning codguard-payment-warning-banner';
-            banner.style.cssText = 'margin: 15px 0; padding: 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404;';
+            banner.style.cssText = 'margin: 10px 0; padding: 10px 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404; font-size: 14px; line-height: 1.4;';
             banner.innerHTML = '<strong>' + this.escapeHtml(this.rejectionMessage) + '</strong>';
 
-            // Insert at the top of payment container
-            paymentContainer.insertBefore(banner, paymentContainer.firstChild);
+            // Insert at the top of payment section
+            targetContainer.insertBefore(banner, targetContainer.firstChild);
 
-            console.log('[CodGuard] Warning banner added to payment page');
+            console.log('[CodGuard] Warning banner added to payment step section');
         },
 
         /**
@@ -283,21 +302,28 @@
         refresh: function() {
             console.log('[CodGuard] Refreshing payment methods');
 
-            // Only refresh if we're on the payment step
-            var paymentStep = document.querySelector('.checkout-step.-current[id*="payment"], .checkout-step.js-current-step[id*="payment"], #checkout-payment-step.-current');
-
-            // Also check what step we're actually on
-            var currentStep = document.querySelector('.checkout-step.-current');
-            if (currentStep) {
-                console.log('[CodGuard] Current step ID:', currentStep.id);
-            }
-
-            if (!paymentStep) {
-                console.log('[CodGuard] Not on payment step - skipping refresh');
+            // Only refresh if payment options are visible
+            var paymentOptions = document.querySelectorAll('input[type="radio"][name="payment-option"]');
+            if (paymentOptions.length === 0) {
+                console.log('[CodGuard] No payment options found - skipping refresh');
                 return;
             }
 
-            console.log('[CodGuard] On payment step, processing methods');
+            // Check visibility
+            var hasVisiblePayment = false;
+            for (var i = 0; i < paymentOptions.length; i++) {
+                if (paymentOptions[i].offsetParent !== null || window.getComputedStyle(paymentOptions[i]).display !== 'none') {
+                    hasVisiblePayment = true;
+                    break;
+                }
+            }
+
+            if (!hasVisiblePayment) {
+                console.log('[CodGuard] Payment options not visible - skipping refresh');
+                return;
+            }
+
+            console.log('[CodGuard] Visible payment options found (' + paymentOptions.length + ') - processing methods');
             this.processPaymentMethods();
         }
     };
