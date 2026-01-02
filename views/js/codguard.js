@@ -114,8 +114,8 @@
             // Create warning banner
             var banner = document.createElement('div');
             banner.className = 'alert alert-warning codguard-payment-warning-banner';
-            banner.style.cssText = 'margin: 10px 0; padding: 10px 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404; font-size: 14px; line-height: 1.4;';
-            banner.innerHTML = '<strong>' + this.escapeHtml(this.rejectionMessage) + '</strong>';
+            banner.style.cssText = 'margin: 15px 0; padding: 12px 20px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 3px; color: #000000; font-size: 15px; line-height: 1.3; font-weight: 500;';
+            banner.innerHTML = this.escapeHtml(this.rejectionMessage);
 
             // Insert at the top of payment section
             targetContainer.insertBefore(banner, targetContainer.firstChild);
@@ -202,9 +202,6 @@
                 // Add visual feedback class
                 container.classList.add('codguard-disabled-payment-method');
                 console.log('[CodGuard] Added disabled class to container');
-
-                // Add description
-                this.addPaymentDescription(container);
             }
         },
 

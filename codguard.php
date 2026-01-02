@@ -619,20 +619,27 @@ class CodGuard extends Module
 
         PrestaShopLogger::addLog('CodGuard: Customer '.$email.' rating: '.$rating_percentage.'% (tolerance: '.$tolerance.'%)', 1);
 
+        // Create a unique key for this checkout session to prevent duplicate feedback
+        $cart_id = isset($params['cart']->id) ? $params['cart']->id : 0;
+        $feedback_key = 'codguard_feedback_sent_' . $cart_id . '_' . md5($email);
+        $feedback_already_sent = isset($this->context->cookie->{$feedback_key}) ? (int)$this->context->cookie->{$feedback_key} : 0;
+
         // If rating is below tolerance, block COD
         if ($rating_percentage < $tolerance) {
-            // Log block event (wrapped in try-catch to prevent crashes)
-            try {
-                $this->logBlockEvent($email, $rating);
-            } catch (Exception $e) {
-                PrestaShopLogger::addLog('CodGuard [ERROR]: logBlockEvent failed: ' . $e->getMessage(), 3);
-            }
-
-            // Send feedback to API (wrapped in try-catch to prevent crashes)
-            try {
-                $this->sendFeedback($email, $rating, $tolerance / 100, 'blocked');
-            } catch (Exception $e) {
-                PrestaShopLogger::addLog('CodGuard [ERROR]: sendFeedback failed: ' . $e->getMessage(), 3);
+            // Send feedback to API only once per checkout session (wrapped in try-catch to prevent crashes)
+            // Note: We no longer log locally since the API stores all feedback centrally
+            if (!$feedback_already_sent) {
+                try {
+                    $this->sendFeedback($email, $rating, $tolerance / 100, 'blocked');
+                    // Mark feedback as sent for this cart/email combination
+                    $this->context->cookie->{$feedback_key} = 1;
+                    $this->context->cookie->write();
+                    PrestaShopLogger::addLog('CodGuard [DEBUG]: Feedback sent and marked for cart ' . $cart_id, 1);
+                } catch (Exception $e) {
+                    PrestaShopLogger::addLog('CodGuard [ERROR]: sendFeedback failed: ' . $e->getMessage(), 3);
+                }
+            } else {
+                PrestaShopLogger::addLog('CodGuard [DEBUG]: Feedback already sent for this checkout session, skipping', 1);
             }
 
             // Get configured payment methods to block
@@ -691,11 +698,19 @@ class CodGuard extends Module
 
             PrestaShopLogger::addLog('CodGuard: Blocked COD for '.$email.' (rating: '.$rating_percentage.'%) - Payment methods filtered', 2);
         } else {
-            // Send feedback to API for allowed transactions (wrapped in try-catch)
-            try {
-                $this->sendFeedback($email, $rating, $tolerance / 100, 'allowed');
-            } catch (Exception $e) {
-                PrestaShopLogger::addLog('CodGuard [ERROR]: sendFeedback failed: ' . $e->getMessage(), 3);
+            // Send feedback to API for allowed transactions only once per checkout session (wrapped in try-catch)
+            if (!$feedback_already_sent) {
+                try {
+                    $this->sendFeedback($email, $rating, $tolerance / 100, 'allowed');
+                    // Mark feedback as sent for this cart/email combination
+                    $this->context->cookie->{$feedback_key} = 1;
+                    $this->context->cookie->write();
+                    PrestaShopLogger::addLog('CodGuard [DEBUG]: Feedback (allowed) sent and marked for cart ' . $cart_id, 1);
+                } catch (Exception $e) {
+                    PrestaShopLogger::addLog('CodGuard [ERROR]: sendFeedback failed: ' . $e->getMessage(), 3);
+                }
+            } else {
+                PrestaShopLogger::addLog('CodGuard [DEBUG]: Feedback already sent for this checkout session, skipping', 1);
             }
 
             // Clear blocked flag if rating is acceptable
@@ -1185,7 +1200,139 @@ class CodGuard extends Module
             </div>
         </div>';
 
-        return $helper->generateForm($fields_form) . $create_status_form;
+        // COD Block Statistics Section
+        $statistics_section = $this->renderStatisticsSection();
+
+        return $helper->generateForm($fields_form) . $create_status_form . $statistics_section;
+    }
+
+    /**
+     * Render COD block statistics section
+     */
+    private function renderStatisticsSection()
+    {
+        // Get block events from database
+        $sql = 'SELECT `email`, `rating`, `timestamp`, `ip_address`
+                FROM `'._DB_PREFIX_.'codguard_block_events`
+                ORDER BY `timestamp` DESC';
+
+        $block_events = Db::getInstance()->executeS($sql);
+        $current_time = time();
+
+        // Calculate stats for different periods
+        $stats = array(
+            'today' => 0,
+            'week' => 0,
+            'month' => 0,
+            'all' => count($block_events),
+        );
+
+        $today_start = strtotime('today', $current_time);
+        $week_start = strtotime('-7 days', $current_time);
+        $month_start = strtotime('-30 days', $current_time);
+
+        foreach ($block_events as $event) {
+            $timestamp = (int)$event['timestamp'];
+            if ($timestamp >= $today_start) {
+                $stats['today']++;
+            }
+            if ($timestamp >= $week_start) {
+                $stats['week']++;
+            }
+            if ($timestamp >= $month_start) {
+                $stats['month']++;
+            }
+        }
+
+        $html = '
+        <div class="panel" style="margin-top: 30px;">
+            <div class="panel-heading">
+                <i class="icon-bar-chart"></i> '.$this->l('COD Block Statistics').'
+            </div>
+            <div class="panel-body">
+                <p class="help-block">'.$this->l('View how many times cash-on-delivery payment was blocked due to low customer ratings.').'</p>
+                <div class="alert alert-info">
+                    <i class="icon-info-circle"></i> '.$this->l('Note: Statistics shown here are from local events only. Complete feedback data is centrally stored via the CodGuard API.').'
+                </div>
+
+                <!-- Stats Display -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 20px;">
+                    <div style="background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="font-size: 36px; font-weight: bold; color: #25b9d7;">'.(int)$stats['today'].'</div>
+                        <div style="margin-top: 8px; color: #666; font-size: 14px;">'.$this->l('Today').'</div>
+                    </div>
+
+                    <div style="background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="font-size: 36px; font-weight: bold; color: #25b9d7;">'.(int)$stats['week'].'</div>
+                        <div style="margin-top: 8px; color: #666; font-size: 14px;">'.$this->l('Last 7 Days').'</div>
+                    </div>
+
+                    <div style="background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="font-size: 36px; font-weight: bold; color: #25b9d7;">'.(int)$stats['month'].'</div>
+                        <div style="margin-top: 8px; color: #666; font-size: 14px;">'.$this->l('Last 30 Days').'</div>
+                    </div>
+
+                    <div style="background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="font-size: 36px; font-weight: bold; color: #25b9d7;">'.(int)$stats['all'].'</div>
+                        <div style="margin-top: 8px; color: #666; font-size: 14px;">'.$this->l('All Time').'</div>
+                    </div>
+                </div>';
+
+        // Recent Blocks Table
+        if (!empty($block_events)) {
+            $recent_events = array_slice($block_events, 0, 10);
+
+            $html .= '
+                <div style="margin-top: 30px;">
+                    <h4>'.$this->l('Recent Blocks').'</h4>
+                    <table class="table" style="margin-top: 10px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">'.$this->l('Date & Time').'</th>
+                                <th style="width: 45%;">'.$this->l('Customer Email').'</th>
+                                <th style="width: 15%;">'.$this->l('Rating').'</th>
+                                <th style="width: 15%;">'.$this->l('IP Address').'</th>
+                            </tr>
+                        </thead>
+                        <tbody>';
+
+            foreach ($recent_events as $event) {
+                $rating_percent = number_format((float)$event['rating'] * 100, 1);
+                $datetime = date('Y-m-d H:i:s', (int)$event['timestamp']);
+
+                $html .= '
+                            <tr>
+                                <td>'.Tools::safeOutput($datetime).'</td>
+                                <td>'.Tools::safeOutput($event['email']).'</td>
+                                <td>'.$rating_percent.'%</td>
+                                <td>'.Tools::safeOutput($event['ip_address']).'</td>
+                            </tr>';
+            }
+
+            $html .= '
+                        </tbody>
+                    </table>';
+
+            if (count($block_events) > 10) {
+                $html .= '
+                    <p class="help-block" style="margin-top: 10px;">
+                        '.sprintf($this->l('Showing 10 most recent blocks out of %d total.'), count($block_events)).'
+                    </p>';
+            }
+
+            $html .= '</div>';
+        } else {
+            $html .= '
+                <p style="margin-top: 20px; padding: 20px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; text-align: center;">
+                    '.$this->l('No COD blocks recorded yet. Statistics will appear here when customers are blocked from using cash-on-delivery payment.').'
+                </p>';
+        }
+
+        $html .= '
+            </div>
+        </div>';
+
+        return $html;
     }
 
     /**
