@@ -20,6 +20,16 @@
 
             console.log('[CodGuard] Initializing payment manager');
 
+            // Check if we're on the payment step (not address step)
+            // We need to be very specific - only run if actual payment methods are visible
+            var paymentRadios = document.querySelectorAll('input[type="radio"][name="payment-option"], input[name*="payment"]');
+            if (paymentRadios.length === 0) {
+                console.log('[CodGuard] No payment radio buttons found - skipping (not on payment step yet)');
+                return;
+            }
+
+            console.log('[CodGuard] Found ' + paymentRadios.length + ' payment options, proceeding with initialization');
+
             // Try to get configuration from PrestaShop global variable (preferred method)
             if (typeof prestashop !== 'undefined' && prestashop.codguardConfig) {
                 console.log('[CodGuard] Configuration found in prestashop.codguardConfig');
