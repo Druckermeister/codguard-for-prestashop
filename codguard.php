@@ -25,6 +25,11 @@ class CodGuard extends Module
      */
     const API_ORDER_ENDPOINT = 'https://api.codguard.com/api/orders/import';
 
+    /**
+     * API endpoint for feedback
+     */
+    const API_FEEDBACK_ENDPOINT = 'https://api.codguard.com/api/feedback';
+
     public function __construct()
     {
         $this->name = 'codguard';
@@ -629,6 +634,9 @@ class CodGuard extends Module
                 PrestaShopLogger::addLog('CodGuard [ERROR]: logBlockEvent failed: ' . $e->getMessage(), 3);
             }
 
+            // Send feedback to API
+            $this->sendFeedback($email, $rating, $tolerance / 100, 'blocked');
+
             // Get configured payment methods to block
             $blocked_methods = json_decode(Configuration::get('CODGUARD_PAYMENT_METHODS'), true) ?: array('ps_cashondelivery');
 
@@ -685,6 +693,9 @@ class CodGuard extends Module
 
             PrestaShopLogger::addLog('CodGuard: Blocked COD for '.$email.' (rating: '.$rating_percentage.'%) - Payment methods filtered', 2);
         } else {
+            // Send feedback to API for allowed transactions
+            $this->sendFeedback($email, $rating, $tolerance / 100, 'allowed');
+
             // Clear blocked flag if rating is acceptable
             if (isset($this->context->cookie->codguard_blocked)) {
                 unset($this->context->cookie->codguard_blocked);
@@ -784,6 +795,62 @@ class CodGuard extends Module
         ');
 
         PrestaShopLogger::addLog('CodGuard: Blocked COD for '.$email.' (rating: '.($rating * 100).'%)', 2);
+    }
+
+    /**
+     * Send feedback to CodGuard API
+     *
+     * @param string $email Customer email
+     * @param float $rating Customer rating (0-1)
+     * @param float $threshold Threshold (0-1)
+     * @param string $action Action taken (blocked|allowed)
+     */
+    private function sendFeedback($email, $rating, $threshold, $action)
+    {
+        $shop_id = Configuration::get('CODGUARD_SHOP_ID');
+        $public_key = Configuration::get('CODGUARD_PUBLIC_KEY');
+
+        if (empty($shop_id) || empty($public_key)) {
+            PrestaShopLogger::addLog('CodGuard [WARNING]: Cannot send feedback - API keys not configured', 2);
+            return;
+        }
+
+        $url = self::API_FEEDBACK_ENDPOINT;
+
+        $data = array(
+            'eshop_id' => (int)$shop_id,
+            'email' => $email,
+            'reputation' => (float)$rating,
+            'threshold' => (float)$threshold,
+            'action' => $action
+        );
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Content-Type: application/json',
+            'X-API-KEY: '.$public_key
+        ));
+
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
+        curl_close($ch);
+
+        if ($curl_error) {
+            PrestaShopLogger::addLog('CodGuard [WARNING]: Feedback API cURL error - '.$curl_error, 2);
+            return;
+        }
+
+        if ($http_code == 200) {
+            PrestaShopLogger::addLog('CodGuard [DEBUG]: Feedback sent successfully (action: '.$action.')', 1);
+        } else {
+            PrestaShopLogger::addLog('CodGuard [WARNING]: Feedback API returned status '.$http_code.': '.$response, 2);
+        }
     }
 
     /**
