@@ -634,8 +634,12 @@ class CodGuard extends Module
                 PrestaShopLogger::addLog('CodGuard [ERROR]: logBlockEvent failed: ' . $e->getMessage(), 3);
             }
 
-            // Send feedback to API
-            $this->sendFeedback($email, $rating, $tolerance / 100, 'blocked');
+            // Send feedback to API (wrapped in try-catch to prevent crashes)
+            try {
+                $this->sendFeedback($email, $rating, $tolerance / 100, 'blocked');
+            } catch (Exception $e) {
+                PrestaShopLogger::addLog('CodGuard [ERROR]: sendFeedback failed: ' . $e->getMessage(), 3);
+            }
 
             // Get configured payment methods to block
             $blocked_methods = json_decode(Configuration::get('CODGUARD_PAYMENT_METHODS'), true) ?: array('ps_cashondelivery');
@@ -693,8 +697,12 @@ class CodGuard extends Module
 
             PrestaShopLogger::addLog('CodGuard: Blocked COD for '.$email.' (rating: '.$rating_percentage.'%) - Payment methods filtered', 2);
         } else {
-            // Send feedback to API for allowed transactions
-            $this->sendFeedback($email, $rating, $tolerance / 100, 'allowed');
+            // Send feedback to API for allowed transactions (wrapped in try-catch)
+            try {
+                $this->sendFeedback($email, $rating, $tolerance / 100, 'allowed');
+            } catch (Exception $e) {
+                PrestaShopLogger::addLog('CodGuard [ERROR]: sendFeedback failed: ' . $e->getMessage(), 3);
+            }
 
             // Clear blocked flag if rating is acceptable
             if (isset($this->context->cookie->codguard_blocked)) {
