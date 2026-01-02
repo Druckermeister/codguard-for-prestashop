@@ -67,7 +67,50 @@
             }
 
             this.initialized = true;
+
+            // If we have blocked methods, show a warning banner
+            if (this.blockedMethods.length > 0) {
+                this.showWarningBanner();
+            }
+
             this.processPaymentMethods();
+        },
+
+        /**
+         * Show warning banner on payment page
+         */
+        showWarningBanner: function() {
+            // Check if banner already exists
+            if (document.querySelector('.codguard-payment-warning-banner')) {
+                return;
+            }
+
+            // Find payment options container
+            var paymentContainer = document.querySelector('#payment-option-1-container, .payment-options, #payment-confirmation, [id*="payment"]');
+            if (!paymentContainer) {
+                console.log('[CodGuard] Could not find payment container for warning banner');
+                return;
+            }
+
+            // Create warning banner
+            var banner = document.createElement('div');
+            banner.className = 'alert alert-warning codguard-payment-warning-banner';
+            banner.style.cssText = 'margin: 15px 0; padding: 15px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404;';
+            banner.innerHTML = '<strong>' + this.escapeHtml(this.rejectionMessage) + '</strong>';
+
+            // Insert at the top of payment container
+            paymentContainer.insertBefore(banner, paymentContainer.firstChild);
+
+            console.log('[CodGuard] Warning banner added to payment page');
+        },
+
+        /**
+         * Escape HTML to prevent XSS
+         */
+        escapeHtml: function(text) {
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         },
 
         /**
@@ -239,6 +282,22 @@
          */
         refresh: function() {
             console.log('[CodGuard] Refreshing payment methods');
+
+            // Only refresh if we're on the payment step
+            var paymentStep = document.querySelector('.checkout-step.-current[id*="payment"], .checkout-step.js-current-step[id*="payment"], #checkout-payment-step.-current');
+
+            // Also check what step we're actually on
+            var currentStep = document.querySelector('.checkout-step.-current');
+            if (currentStep) {
+                console.log('[CodGuard] Current step ID:', currentStep.id);
+            }
+
+            if (!paymentStep) {
+                console.log('[CodGuard] Not on payment step - skipping refresh');
+                return;
+            }
+
+            console.log('[CodGuard] On payment step, processing methods');
             this.processPaymentMethods();
         }
     };
